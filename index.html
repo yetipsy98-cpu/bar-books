@@ -720,48 +720,67 @@ function parsePartnerRows(rows){
 async function loadFromSheet(silent){
   const url=sheetUrl();
   if(!url){ if(!silent) toast('先在「设置」里填 Apps Script 网址'); return false; }
-  try{
-    const r=await fetch(url+(url.includes('?')?'&':'?')+'action=load',{method:'GET',mode:'cors'});
-    const j=await r.json();
-    if(!j.ok){ if(!silent) toast('载入失败：'+(j.error||'')); return false; }
-    const serverEmpty=(j.sales||[]).length===0 && (j.expenses||[]).length===0 && (j.partners||[]).length===0;
-    const localEmpty=state.sales.length===0 && state.expenses.length===0 && state.partners.length===0;
-    if(serverEmpty && !localEmpty){
-      // 表格是空的、本机有数据 → 保留本机数据，并推送到表格
-      saveLocal(); markSync('本机有数据，准备上传到表格…'); setTimeout(pushAll, 800);
-      if(!silent) toast('表格还是空的，已保留本机数据并准备上传');
-      return true;
-    }
-    if(j.sales!==undefined){ state.sales=parseSalesRows(j.sales); state.expenses=parseExpenseRows(j.expenses); state.partners=parsePartnerRows(j.partners); }
-    if(j.settings){ state.settings=Object.assign({}, state.settings, j.settings); }
-    saveLocal(); markSync('⬇ 已从 Google Sheets 载入');
+  const r=await tryFetch(url+(url.includes('?')?'&':'?')+'action=load');
+  if(!r.ok){ if(!silent) toast('❌ '+r.hint); markSync('❌ 载入失败：'+r.hint); return false; }
+  const j=r.json;
+  if(j.service==='cocktail-bar-accounting'){ if(!silent) toast('⚠️ 后端是旧版本：请重新粘贴最新的 AppsScript_后端.gs 并重新部署'); markSync('⚠️ 后端旧版'); return false; }
+  if(j.ok===false){ if(!silent) toast('❌ '+(j.error||j.hint||'后端报错')); markSync('❌ '+(j.error||j.hint||'')); return false; }
+  const serverEmpty=(j.sales||[]).length===0 && (j.expenses||[]).length===0 && (j.partners||[]).length===0;
+  const localEmpty=state.sales.length===0 && state.expenses.length===0 && state.partners.length===0;
+  if(serverEmpty && !localEmpty){
+    // 表格是空的、本机有数据 → 保留本机数据，并推送到表格
+    saveLocal(); markSync('表格是空的，本机有数据 → 准备上传'); setTimeout(pushAll, 800);
+    if(!silent) toast('表格还是空的，已保留本机数据并准备上传');
     return true;
-  }catch(e){ if(!silent) toast('❌ 载入失败，检查网址/网络'); return false; }
+  }
+  if(j.sales!==undefined){ state.sales=parseSalesRows(j.sales); state.expenses=parseExpenseRows(j.expenses); state.partners=parsePartnerRows(j.partners); }
+  if(j.settings){ state.settings=Object.assign({}, state.settings, j.settings); }
+  saveLocal(); markSync('⬇ 已从 Google Sheets 载入');
+  return true;
 }
 async function pushAll(){
-  const url=sheetUrl(); if(!url) return;
+  const url=sheetUrl(); if(!url) return false;
   const body=JSON.stringify({ action:'save',
     settings:{ shop:state.settings.shop, year:state.settings.year, serviceRate:state.settings.serviceRate, partners:state.settings.partners },
     sales: salesRowsForSync(), expenses: expenseRowsForSync(), partners: partnerRowsForSync() });
-  try{
-    const r=await fetch(url,{method:'POST',mode:'cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body});
-    const j=await r.json();
-    if(!j.ok) throw new Error(j.error||'写入失败');
-    markSync('✅ 已同步 '+(j.written?(j.written.sales||0):0)+' 天销售 / '+(j.written?(j.written.expenses||0):0)+' 笔费用');
-  }catch(e){ markSync('❌ 同步失败：'+e.message); }
+  const r=await tryFetch(url,{method:'POST',mode:'cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body});
+  if(!r.ok){ markSync('❌ 同步失败：'+r.hint); return false; }
+  const j=r.json;
+  if(!j.ok){ markSync('❌ 同步失败：'+(j.error||j.hint||'')); return false; }
+  markSync('✅ 已同步 '+(j.written?(j.written.sales||0):0)+' 天销售 / '+(j.written?(j.written.expenses||0):0)+' 笔费用 / '+(j.written?(j.written.partners||0):0)+' 笔合伙人记录');
+  return true;
+}
+async function tryFetch(url, opts){
+  let resp;
+  try{ resp = await fetch(url, opts||{method:'GET', mode:'cors'}); }
+  catch(e){ return {ok:false, status:0, hint:'网络错误，连不上这个网址（检查网址拼写 / 网络）'}; }
+  let text='';
+  try{ text = await resp.text(); }catch(e){}
+  if(!resp.ok){
+    return {ok:false, status:resp.status, hint:'服务器返回 HTTP '+resp.status+(resp.status===302?'（被重定向，通常是部署时「谁可以访问」没设成「任何人」）':'（请求被拒绝）')};
+  }
+  if(/^\s*</.test(text)){
+    if(/accounts\.google|login|Authorization required|Sign in/i.test(text)) return {ok:false, status:resp.status, hint:'对方返回了 Google 登录页 → 重新部署，把「谁可以访问」改成「任何人 (Anyone)」'};
+    return {ok:false, status:resp.status, hint:'对方返回了网页而不是数据 → 可能是旧版代码，或脚本还没完成授权'};
+  }
+  try{ return {ok:true, status:resp.status, json:JSON.parse(text)}; }
+  catch(e){ return {ok:false, status:resp.status, hint:'返回内容不是有效数据（前100字：'+text.slice(0,100)+'）'}; }
 }
 async function testSync(){
-  const url=(state.settings.syncUrl||'').trim();
-  if(!url){ toast('先在设置里填 Apps Script 网址'); return; }
-  try{
-    const r=await fetch(url+(url.includes('?')?'&':'?')+'test=1',{method:'GET',mode:'cors'}); const j=await r.json();
-    if(j.ok) toast('✅ 连接成功，可以同步'); else toast('连接失败：'+(j.error||'?'));
-  }catch(e){ toast('❌ 无法连接，检查网址和部署设置'); }
+  const url=sheetUrl(); if(!url){ toast('先在设置里填 Apps Script 网址'); return; }
+  toast('⏳ 正在测试连接…');
+  const r=await tryFetch(url+(url.includes('?')?'&':'?')+'action=load');
+  if(!r.ok){ toast('❌ '+r.hint); markSync('❌ 测试失败：'+r.hint); return; }
+  const j=r.json;
+  if(j.service==='cocktail-bar-accounting'){ toast('⚠️ 后端还是旧版本：请重新粘贴最新的 .gs 代码并重新部署'); return; }
+  if(j.ok===false){ toast('❌ '+(j.error||j.hint||'后端报错')); return; }
+  toast('✅ 连接成功！表格里现有 '+(j.sales?j.sales.length:0)+' 天销售 / '+(j.expenses?j.expenses.length:0)+' 笔费用 / '+(j.partners?j.partners.length:0)+' 笔合伙人记录');
 }
 async function syncNow(){
   if(!sheetUrl()){ toast('☁️ 先在「设置」里填入 Apps Script 网址'); return; }
   toast('⏳ 正在同步到 Google Sheets…');
-  await pushAll();
+  const ok=await pushAll();
+  if(ok) toast('✅ 已同步到 Google Sheets');
 }
 
 function csvDownload(name, headers, rows){
@@ -818,6 +837,5 @@ function field(label,id,type){
   go('dashboard');
 })();
 </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3ad761928eca742',t:'MTc4OTM2ODY2Nw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"1954b47c125f43f8b4338b3c4f804e4f","spa":2}' crossorigin="anonymous"></script>
-</body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3ad93e43f605545',t:'MTc4OTM2OTg4Nw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
