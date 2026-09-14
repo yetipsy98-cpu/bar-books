@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>鸡尾酒吧做账系统</title>
+<style>
+  :root{
+    --nav:#14182b; --nav2:#1c2138; --gold:#e8b74a; --gold2:#d4a437;
+    --bg:#f2f4f8; --card:#ffffff; --ink:#1f2a3a; --muted:#7a8699;
+    --line:#e7ebf1; --ok:#1e9e5a; --bad:#e0483a; --blue:#2f6fed;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,sans-serif;
+    background:var(--bg); color:var(--ink); font-size:14px;
+  }
+  .app{display:flex; min-height:100vh;}
+  /* ---------- 侧栏 ---------- */
+  .sidebar{
+    width:230px; flex:0 0 230px; background:linear-gradient(180deg,var(--nav),var(--nav2));
+    color:#cdd5e4; display:flex; flex-direction:column; position:sticky; top:0; height:100vh;
+  }
+  .brand{padding:22px 20px 6px; font-size:20px; font-weight:800; color:#fff;}
+  .brand small{display:block; font-size:11px; color:var(--gold); font-weight:600; letter-spacing:.5px;}
+  .shop-name{padding:2px 20px 16px; font-size:12px; color:#9aa5ba;}
+  nav{flex:1; padding:6px 12px;}
+  nav a{
+    display:flex; align-items:center; gap:10px; padding:11px 12px; margin:2px 0;
+    border-radius:10px; color:#c4cddd; text-decoration:none; cursor:pointer; font-weight:600;
+    transition:.15s;
+  }
+  nav a:hover{background:rgba(255,255,255,.06); color:#fff;}
+  nav a.active{background:linear-gradient(90deg,rgba(232,183,74,.18),rgba(232,183,74,.06)); color:var(--gold); box-shadow:inset 3px 0 0 var(--gold);}
+  .sync-zone{padding:14px 16px; border-top:1px solid rgba(255,255,255,.08);}
+  .btn-sync{
+    width:100%; padding:11px; border:none; border-radius:10px; cursor:pointer; font-weight:700; font-size:13px;
+    background:linear-gradient(135deg,var(--gold),var(--gold2)); color:#3a2c07;
+  }
+  .btn-sync:hover{filter:brightness(1.05);}
+  .persist-note{font-size:11px; color:#f3c98b; margin-top:8px; line-height:1.4;}
+  .ver{font-size:10px; color:#6b7690; padding:0 16px 14px;}
+  /* ---------- 主区 ---------- */
+  main{flex:1; padding:26px 30px 60px; max-width:1180px;}
+  .page-head{margin-bottom:18px;}
+  .page-head h1{font-size:22px; font-weight:800;}
+  .page-head p{color:var(--muted); margin-top:4px;}
+  .card{background:var(--card); border-radius:14px; box-shadow:0 1px 3px rgba(20,30,60,.06),0 8px 24px -18px rgba(20,30,60,.25); padding:20px; margin-bottom:18px;}
+  .card h3{font-size:14px; margin-bottom:14px; display:flex; align-items:center; gap:8px;}
+  .grid{display:grid; gap:14px;}
+  .g2{grid-template-columns:repeat(2,1fr);}
+  .g3{grid-template-columns:repeat(3,1fr);}
+  .g4{grid-template-columns:repeat(4,1fr);}
+  @media(max-width:900px){.g2,.g3,.g4{grid-template-columns:1fr 1fr;}}
+  @media(max-width:600px){.g2,.g3,.g4{grid-template-columns:1fr;}}
+  /* ---------- 表单 ---------- */
+  label{display:block; font-size:12px; font-weight:700; color:#546072; margin:0 0 5px;}
+  input,select{
+    width:100%; padding:9px 11px; border:1.5px solid var(--line); border-radius:9px;
+    font-size:14px; background:#fbfcfe; color:var(--ink); outline:none; transition:.15s;
+  }
+  input:focus,select:focus{border-color:var(--gold); background:#fff; box-shadow:0 0 0 3px rgba(232,183,74,.15);}
+  .field{margin-bottom:12px;}
+  .btn{
+    padding:10px 16px; border:none; border-radius:9px; cursor:pointer; font-weight:700; font-size:13px;
+    transition:.15s; background:#eef2f7; color:#33415a;
+  }
+  .btn:hover{background:#e2e8f0;}
+  .btn-gold{background:linear-gradient(135deg,var(--gold),var(--gold2)); color:#3a2c07;}
+  .btn-blue{background:var(--blue); color:#fff;}
+  .btn-danger{background:#fdecea; color:var(--bad);}
+  .btn-sm{padding:6px 10px; font-size:12px; border-radius:7px;}
+  .row{display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;}
+  .row .grow{flex:1; min-width:160px;}
+  /* 销售实时小结 */
+  .live-box{
+    display:grid; grid-template-columns:repeat(5,1fr); gap:10px; background:#fbf7ec;
+    border:1px dashed #e6d4a3; border-radius:12px; padding:12px 14px; margin-bottom:16px;
+  }
+  @media(max-width:700px){.live-box{grid-template-columns:repeat(2,1fr);}}
+  .live-box .k{font-size:11px; color:#8a7a4c; font-weight:700;}
+  .live-box .v{font-size:17px; font-weight:800; color:#4d3d0e; margin-top:2px;}
+  .live-box .diff-ok{color:var(--ok);} .live-box .diff-bad{color:var(--bad);}
+  /* ---------- 统计卡 ---------- */
+  .stat{
+    background:var(--card); border-radius:14px; padding:16px 18px;
+    box-shadow:0 1px 3px rgba(20,30,60,.06),0 8px 24px -18px rgba(20,30,60,.25);
+  }
+  .stat .k{font-size:12px; color:var(--muted); font-weight:600;}
+  .stat .v{font-size:21px; font-weight:800; margin-top:6px;}
+  .stat .sub{font-size:11px; color:var(--muted); margin-top:4px;}
+  .stat .v.good{color:var(--ok);} .stat .v.bad{color:var(--bad);}
+  /* ---------- 表格 ---------- */
+  .tblwrap{overflow-x:auto;}
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th{
+    text-align:left; padding:10px 12px; background:#f6f8fb; color:#5a6779;
+    font-size:11px; text-transform:uppercase; letter-spacing:.4px; border-bottom:1px solid var(--line);
+    white-space:nowrap;
+  }
+  td{padding:9px 12px; border-bottom:1px solid #f0f3f7; white-space:nowrap;}
+  tr:hover td{background:#fafbfd;}
+  .num{text-align:right; font-variant-numeric:tabular-nums;}
+  .tag{
+    display:inline-block; padding:2px 9px; border-radius:99px; font-size:11px; font-weight:700;
+    background:#eef2f7; color:#5a6779;
+  }
+  .tag.cogs{background:#fdeeee; color:#b3402f;}
+  .tag.cap{background:#e8f5ee; color:#1e7a48;}
+  .tag.drw{background:#fdeeee; color:#b3402f;}
+  .diff-pill{font-weight:800;}
+  .diff-pill.ok{color:var(--ok);} .diff-pill.bad{color:var(--bad);}
+  .empty{text-align:center; color:var(--muted); padding:26px;}
+  .muted{color:var(--muted);}
+  .small{font-size:12px;}
+  .section-title{
+    font-size:13px; font-weight:800; color:#33415a; padding:14px 0 6px;
+    border-bottom:2px solid var(--ink); margin:6px 0 8px; text-transform:uppercase; letter-spacing:.5px;
+  }
+  .pl-table td:last-child{text-align:right; font-variant-numeric:tabular-nums; font-weight:600;}
+  .pl-table tr.total td{background:#fbf7ec; font-weight:800; border-top:1px solid #e6d4a3;}
+  .chart{display:flex; align-items:flex-end; gap:10px; height:150px; padding:6px 4px 0;}
+  .bar{flex:1; display:flex; flex-direction:column; align-items:center; gap:6px; height:100%; justify-content:flex-end;}
+  .bar .col{width:100%; background:linear-gradient(180deg,var(--gold),#e0b65c); border-radius:6px 6px 2px 2px; min-height:2px;}
+  .bar .lbl{font-size:10px; color:var(--muted);}
+  .bar .amt{font-size:10px; color:#7a6a3d; font-weight:700; writing-mode:vertical-rl; transform:rotate(180deg); max-height:74px; overflow:hidden;}
+  .toast{
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(80px);
+    background:#1c2138; color:#fff; padding:12px 20px; border-radius:12px; font-weight:600;
+    box-shadow:0 10px 30px rgba(0,0,0,.3); transition:.25s; z-index:99; opacity:0; pointer-events:none;
+    max-width:90vw;
+  }
+  .toast.show{transform:translateX(-50%) translateY(0); opacity:1;}
+  .partner-caps{display:grid; grid-template-columns:repeat(3,1fr); gap:12px;}
+  @media(max-width:700px){.partner-caps{grid-template-columns:1fr;}}
+  .pcap{background:#fbf7ec; border-radius:12px; padding:14px;}
+  .pcap .n{font-weight:800; font-size:13px;}
+  .pcap .ln{display:flex; justify-content:space-between; margin-top:8px; font-size:12px; color:#5a6779;}
+  .pcap .ln b{color:var(--ink);}
+  .hr{height:1px; background:var(--line); margin:14px 0;}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">🍸 酒吧账本 <small>BAR BOOKS · MY</small></div>
+    <div class="shop-name" id="shopLabel">未设置店名</div>
+    <nav id="nav">
+      <a data-view="dashboard" class="active">📊 仪表盘</a>
+      <a data-view="sales">🧾 每日销售</a>
+      <a data-view="expenses">💸 费用支出</a>
+      <a data-view="partners">🤝 合伙人账户</a>
+      <a data-view="reports">📈 报表</a>
+      <a data-view="settings">⚙️ 设置</a>
+    </nav>
+    <div class="sync-zone">
+      <button class="btn-sync" id="syncBtn">☁️ 同步到 Google Sheets</button>
+      <div class="persist-note" id="persistNote"></div>
+      <div class="persist-note" id="lastSync" style="color:#8f9bb0;font-size:10px;margin-top:5px"></div>
+    </div>
+    <div class="ver">v1.0 · 马来西亚合伙做账</div>
+  </aside>
+  <main id="main"></main>
+</div>
+<div class="toast" id="toast"></div>
+<input type="file" id="importFile" accept=".json" style="display:none">
+
+<script>
+/* ================= 存储（localStorage + 内存兜底） ================= */
+const LS = (()=>{
+  const mem = {}; let ok = true;
+  try{ localStorage.setItem('__t','1'); localStorage.removeItem('__t'); }catch(e){ ok=false; }
+  return {
+    persistent: ok,
+    get(k,d){ try{ const s=localStorage.getItem(k); return s==null? d : JSON.parse(s); }catch(e){ return (k in mem)? mem[k] : d; } },
+    set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){ mem[k]=v; } }
+  };
+})();
+
+const YEAR = new Date().getFullYear();
+const DEFAULTS = {
+  settings:{ shop:'', year:YEAR, serviceRate:10, partners:[{name:'合伙人1',pct:50},{name:'合伙人2',pct:50}], syncUrl:'' },
+  sales:[], expenses:[], partners:[]
+};
+let state = LS.get('cocktail_acct_v1', DEFAULTS);
+if(!state.settings || !state.settings.partners){ state = JSON.parse(JSON.stringify(DEFAULTS)); }
+
+const CATEGORIES = ['酒水进货','食材进货','其他进货','租金','水电费','工资','EPF/SOCSO/EIS','执照费','市场推广','维修保养','保险','银行手续费','会计费','消耗品','音乐版权费','其他费用'];
+const COGS_CATS  = ['酒水进货','食材进货','其他进货'];
+const PAYS       = ['现金','银行转账','其他'];
+const PTYPES     = ['资本投入','提款','归还资本','其他调整'];
+
+/* ================= 工具 ================= */
+function saveLocal(){ LS.set('cocktail_acct_v1', state); }
+function save(){ saveLocal(); schedulePush(); }
+let pushTimer=null;
+function schedulePush(){
+  if(!(state.settings.syncUrl||'').trim()) return;
+  clearTimeout(pushTimer);
+  pushTimer=setTimeout(pushAll, 1500);
+}
+function markSync(msg){ const el=document.getElementById('lastSync'); if(el) el.textContent=msg+' · '+new Date().toLocaleTimeString(); }
+function sheetUrl(){ return (state.settings.syncUrl||'').trim(); }
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function num(v){ const n=parseFloat(v); return isNaN(n)?0:n; }
+function r2(n){ return Math.round((n+Number.EPSILON)*100)/100; }
+const MYR = new Intl.NumberFormat('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2});
+function rm(n){ return 'RM '+MYR.format(r2(n)); }
+function dstr(d){ const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0'); return y+'-'+m+'-'+dd; }
+function todayStr(){ return dstr(new Date()); }
+function monthRange(y,m){ const last=new Date(y,m,0).getDate(); return {from: y+'-'+String(m).padStart(2,'0')+'-01', to: y+'-'+String(m).padStart(2,'0')+'-'+String(last).padStart(2,'0')}; }
+function readNum(id){ const el=document.getElementById(id); return el? num(el.value) : 0; }
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),2600); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+/* ================= 销售计算 ================= */
+function calcRow(x){
+  const liquor=num(x.liquor), food=num(x.food), soft=num(x.soft), disc=num(x.discount);
+  const net = r2(liquor+food+soft-disc);
+  const service = r2(net * (state.settings.serviceRate||0)/100);
+  const receivable = r2(net+service);
+  const collected = r2(num(x.cash)+num(x.card)+num(x.tng)+num(x.grab)+num(x.duitnow)+num(x.boost)+num(x.other));
+  return { liquor, food, soft, disc, net, service, receivable, collected, diff: r2(collected-receivable) };
+}
+function sortAsc(a,b){ return a.date.localeCompare(b.date) || (a.ts-b.ts); }
+function sortDesc(a,b){ return b.date.localeCompare(a.date) || (b.ts-a.ts); }
+
+/* ================= 汇总计算 ================= */
+function calcPL(from,to){
+  const sels = state.sales.filter(x=>x.date>=from && x.date<=to);
+  const exps = state.expenses.filter(x=>x.date>=from && x.date<=to);
+  let liquor=0,food=0,soft=0,disc=0,service=0,net=0,receivable=0,collected=0,diff=0;
+  sels.forEach(x=>{ const c=calcRow(x); liquor+=c.liquor; food+=c.food; soft+=c.soft; disc+=c.disc; service+=c.service; net+=c.net; receivable+=c.receivable; collected+=c.collected; diff+=c.diff; });
+  const cogs={}, opex={}; let cogsT=0, opexT=0;
+  exps.forEach(x=>{ const a=num(x.amount); const c=x.category||'其他费用';
+    if(COGS_CATS.includes(c)){ cogs[c]=(cogs[c]||0)+a; cogsT+=a; }
+    else{ opex[c]=(opex[c]||0)+a; opexT+=a; } });
+  const income = net+service;
+  const gross = net-cogsT;
+  const netProfit = gross-opexT;
+  return { liquor, food, soft, disc, net, service, income, cogs, cogsT, opex, opexT, gross, netProfit, sels, exps, diff };
+}
+function partnerSummary(){
+  return state.settings.partners.map(p=>{
+    let cap=0, drw=0;
+    state.partners.forEach(x=>{ if(x.partner!==p.name) return;
+      if(x.type==='资本投入') cap+=num(x.amount);
+      if(x.type==='归还资本') cap-=num(x.amount);
+      if(x.type==='提款') drw+=num(x.amount);
+    });
+    return { name:p.name, pct:p.pct, cap:r2(cap), drw:r2(drw), net:r2(cap-drw) };
+  });
+}
+
+/* ================= 视图切换 ================= */
+const VIEWS = { dashboard:renderDashboard, sales:renderSales, expenses:renderExpenses, partners:renderPartners, reports:renderReports, settings:renderSettings };
+function go(view){ document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('active', a.dataset.view===view)); VIEWS[view](); }
+document.getElementById('nav').addEventListener('click', e=>{ const a=e.target.closest('a'); if(a) go(a.dataset.view); });
+document.getElementById('syncBtn').addEventListener('click', syncNow);
+
+function head(title, sub){ return '<div class="page-head"><h1>'+title+'</h1><p>'+sub+'</p></div>'; }
+
+/* ================= 仪表盘 ================= */
+function renderDashboard(){
+  const shop = state.settings.shop || '我的酒吧';
+  document.getElementById('shopLabel').textContent = shop+' · '+state.settings.year;
+  const today = todayStr();
+  const m = new Date().getMonth()+1, y = new Date().getFullYear();
+  const mr = monthRange(y,m);
+  const pl = calcPL(mr.from, mr.to);
+  const ytd = calcPL(state.settings.year+'-01-01', state.settings.year+'-12-31');
+  // 最近7天柱状图
+  const days=[]; for(let i=6;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-(i)); days.push(dstr(d)); }
+  const daySum = {}; days.forEach(d=>daySum[d]=0);
+  state.sales.forEach(x=>{ if(daySum[x.date]!==undefined) daySum[x.date]+=calcRow(x).net; });
+  const maxV = Math.max(1, ...days.map(d=>daySum[d]));
+  const bars = days.map(d=>{
+    const v=daySum[d]; const h=Math.max(2, Math.round(v/maxV*100));
+    return '<div class="bar"><div class="amt">'+MYR.format(v)+'</div><div class="col" style="height:'+h+'%"></div><div class="lbl">'+d.slice(5)+'</div></div>';
+  }).join('');
+  const ps = partnerSummary();
+  const recent = [
+    ...state.sales.slice().sort(sortDesc).slice(0,4).map(x=>({d:x.date,t:'销售',s:rm(calcRow(x).net)})),
+    ...state.expenses.slice().sort(sortDesc).slice(0,4).map(x=>({d:x.date,t:'费用 · '+(x.category||''),s:'-'+rm(num(x.amount))}))
+  ].sort((a,b)=>b.d.localeCompare(a.d)).slice(0,6);
+  const pcap = ps.map(p=>'<div class="pcap"><div class="n">👤 '+esc(p.name)+'（'+p.pct+'%）</div>'+
+    '<div class="ln"><span>资本投入</span><b>'+rm(p.cap)+'</b></div>'+
+    '<div class="ln"><span>提款</span><b>'+rm(p.drw)+'</b></div>'+
+    '<div class="ln"><span>净投入</span><b>'+rm(p.net)+'</b></div></div>').join('');
+
+  document.getElementById('main').innerHTML =
+    head('仪表盘', dstr(new Date())+' · 本月概览') +
+    '<div class="grid g4" style="margin-bottom:18px">'+
+      stat('本月净销售', rm(pl.net), '服务费 '+rm(pl.service))+
+      stat('本月毛利', rm(pl.gross), '毛利率 '+(pl.net? (pl.gross/pl.net*100).toFixed(1):'0')+'%', pl.gross>=0)+
+      stat('本月净利润', rm(pl.netProfit), '合伙人分配前', pl.netProfit>=0)+
+      stat('收款差额', rm(pl.diff), '应为 0，非 0 要查', pl.diff===0)+
+    '</div>'+
+    '<div class="grid g3" style="grid-template-columns:1.4fr 1fr; margin-bottom:18px">'+
+      '<div class="card"><h3>📅 最近 7 天净销售</h3><div class="chart">'+bars+'</div></div>'+
+      '<div class="card"><h3>🕘 最近动态</h3>'+
+        (recent.length? recent.map(r=>'<div class="ln" style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f0f3f7"><span class="small">'+r.d+' · '+esc(r.t)+'</span><b>'+r.s+'</b></div>').join('') : '<div class="empty">还没有数据，先去填「每日销售」</div>')+
+      '</div>'+
+    '</div>'+
+    '<div class="card"><h3>🤝 合伙人资金一览</h3><div class="partner-caps">'+(pcap||'<span class="muted">去「设置」添加合伙人</span>')+'</div></div>'+
+    '<div class="grid g3" style="margin-top:18px">'+
+      stat('今年至今·净销售', rm(ytd.net))+
+      stat('今年至今·净利润', rm(ytd.netProfit), '', ytd.netProfit>=0)+
+      stat('已记录销售', state.sales.length+' 天', '费用 '+state.expenses.length+' 笔')+
+    '</div>';
+  function stat(k,v,sub,good){
+    const cls = good===undefined? '' : (good?'good':'bad');
+    return '<div class="stat"><div class="k">'+k+'</div><div class="v '+cls+'">'+v+'</div>'+(sub?'<div class="sub">'+sub+'</div>':'')+'</div>';
+  }
+}
+
+/* ================= 每日销售 ================= */
+let editingSalesId=null;
+function salesFormHTML(){
+  return '<form id="salesForm">'+
+  '<div class="card"><h3>📝 记录当天销售（收工后填一行）</h3>'+
+    '<div class="live-box">'+
+      '<div><div class="k">净销售</div><div class="v" id="sv_net">RM 0.00</div></div>'+
+      '<div><div class="k">服务费('+(state.settings.serviceRate||0)+'%)</div><div class="v" id="sv_service">RM 0.00</div></div>'+
+      '<div><div class="k">应收合计</div><div class="v" id="sv_recv">RM 0.00</div></div>'+
+      '<div><div class="k">实收合计</div><div class="v" id="sv_collect">RM 0.00</div></div>'+
+      '<div><div class="k">差额</div><div class="v" id="sv_diff">RM 0.00</div></div>'+
+    '</div>'+
+    '<div class="grid g4">'+
+      field('日期','s_date','date')+
+      field('酒水销售','s_liquor')+field('食物销售','s_food')+field('软饮销售','s_soft')+
+      field('折扣 / Void（填正数）','s_discount')+field('开台数','s_covers')+field('客人数','s_guests')+
+    '</div>'+
+    '<div class="section-title">收款方式（当天实收）</div>'+
+    '<div class="grid g4">'+
+      field('现金','s_cash')+field('卡','s_card')+field("Touch 'n Go",'s_tng')+field('GrabPay','s_grab')+
+      field('DuitNow QR','s_duitnow')+field('Boost','s_boost')+field('其他','s_other')+
+    '</div>'+
+    '<div class="section-title">内控记录（不影响金额，仅记录）</div>'+
+    '<div class="grid g3">'+
+      field('免费请客','s_comp')+field('溢倒/损耗','s_spill')+field('备注','s_note','text')+
+    '</div>'+
+    '<div class="row" style="margin-top:6px">'+
+      '<button class="btn btn-gold" type="submit" id="salesSubmit">💾 保存这一天的销售</button>'+
+      '<button class="btn" type="button" id="salesNew">＋ 新增一条</button>'+
+      '<button class="btn" type="button" id="salesCsv">⬇ 导出 CSV</button>'+
+    '</div>'+
+  '</div></form>';
+}
+function renderSales(){
+  document.getElementById('main').innerHTML =
+    head('每日销售','每天收工后记录营业额与实收，差额应为 0')+
+    salesFormHTML()+
+    '<div class="card"><h3>📋 销售记录 '+
+      '<input id="salesSearch" placeholder="🔍 搜索日期 / 备注" style="width:220px;margin-left:auto">'+
+    '</h3><div class="tblwrap"><table><thead><tr>'+
+      '<th>日期</th><th>酒水</th><th>食物</th><th>软饮</th><th class="num">净销售</th><th class="num">服务费</th><th class="num">应收</th><th class="num">实收</th><th class="num">差额</th><th>备注</th><th></th>'+
+    '</tr></thead><tbody id="salesTbody"></tbody></table></div></div>';
+  document.getElementById('s_date').value = todayStr();
+  bindSalesForm();
+  refreshSalesTable();
+}
+function bindSalesForm(){
+  ['s_liquor','s_food','s_soft','s_discount','s_cash','s_card','s_tng','s_grab','s_duitnow','s_boost','s_other']
+    .forEach(id=>{ document.getElementById(id).addEventListener('input', updateSalesSummary); });
+  document.getElementById('salesForm').addEventListener('submit', e=>{
+    e.preventDefault();
+    const date=document.getElementById('s_date').value;
+    if(!date){ toast('请填日期'); return; }
+    const rec={ id: editingSalesId||uid(), ts: Date.now(), date,
+      liquor:readNum('s_liquor'), food:readNum('s_food'), soft:readNum('s_soft'), discount:readNum('s_discount'),
+      cash:readNum('s_cash'), card:readNum('s_card'), tng:readNum('s_tng'), grab:readNum('s_grab'),
+      duitnow:readNum('s_duitnow'), boost:readNum('s_boost'), other:readNum('s_other'),
+      comp:readNum('s_comp'), spill:readNum('s_spill'), covers:readNum('s_covers'), guests:readNum('s_guests'),
+      note:document.getElementById('s_note').value.trim() };
+    if(editingSalesId){ const i=state.sales.findIndex(x=>x.id===editingSalesId); if(i>=0) state.sales[i]=rec; }
+    else state.sales.push(rec);
+    editingSalesId=null; save(); toast('✅ 已保存'); 
+    document.getElementById('salesForm').reset(); document.getElementById('s_date').value=todayStr();
+    updateSalesSummary(); refreshSalesTable();
+  });
+  document.getElementById('salesNew').addEventListener('click', ()=>{ editingSalesId=null; document.getElementById('salesForm').reset(); document.getElementById('s_date').value=todayStr(); updateSalesSummary(); toast('表单已清空'); });
+  document.getElementById('salesCsv').addEventListener('click', exportSalesCSV);
+  document.getElementById('salesSearch').addEventListener('input', refreshSalesTable);
+}
+function updateSalesSummary(){
+  const net = r2(readNum('s_liquor')+readNum('s_food')+readNum('s_soft')-readNum('s_discount'));
+  const sv = r2(net*(state.settings.serviceRate||0)/100);
+  const recv = r2(net+sv);
+  const col = r2(readNum('s_cash')+readNum('s_card')+readNum('s_tng')+readNum('s_grab')+readNum('s_duitnow')+readNum('s_boost')+readNum('s_other'));
+  const diff = r2(col-recv);
+  document.getElementById('sv_net').textContent=rm(net);
+  document.getElementById('sv_service').textContent=rm(sv);
+  document.getElementById('sv_recv').textContent=rm(recv);
+  document.getElementById('sv_collect').textContent=rm(col);
+  const d=document.getElementById('sv_diff'); d.textContent=rm(diff); d.className='v '+(diff===0?'diff-ok':'diff-bad');
+}
+function refreshSalesTable(){
+  const q=(document.getElementById('salesSearch').value||'').trim().toLowerCase();
+  const rows = state.sales.slice().sort(sortDesc).filter(x=> !q || x.date.includes(q) || (x.note||'').toLowerCase().includes(q)).slice(0,300);
+  const tb=document.getElementById('salesTbody');
+  tb.innerHTML = rows.length? rows.map(x=>{
+    const c=calcRow(x);
+    return '<tr><td>'+x.date+'</td><td class="num">'+MYR.format(c.liquor)+'</td><td class="num">'+MYR.format(c.food)+'</td><td class="num">'+MYR.format(c.soft)+'</td>'+
+      '<td class="num"><b>'+rm(c.net)+'</b></td><td class="num">'+rm(c.service)+'</td><td class="num">'+rm(c.receivable)+'</td><td class="num">'+rm(c.collected)+'</td>'+
+      '<td class="num"><span class="diff-pill '+(c.diff===0?'ok':'bad')+'">'+rm(c.diff)+'</span></td>'+
+      '<td class="muted small">'+esc(x.note||'')+'</td>'+
+      '<td><button class="btn btn-sm" data-edit="'+x.id+'">✏️</button> <button class="btn btn-sm btn-danger" data-del="'+x.id+'">🗑</button></td></tr>';
+  }).join('') : '<tr><td colspan="11" class="empty">还没有记录 — 在上面填好日期和金额，点保存</td></tr>';
+  tb.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>fillSalesForm(b.dataset.edit)));
+  tb.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',()=>{
+    if(confirm('删除这条销售记录？')){ state.sales=state.sales.filter(x=>x.id!==b.dataset.del); save(); refreshSalesTable(); }
+  }));
+}
+function fillSalesForm(id){
+  const x=state.sales.find(v=>v.id===id); if(!x) return;
+  editingSalesId=id;
+  const map={s_date:x.date,s_liquor:x.liquor,s_food:x.food,s_soft:x.soft,s_discount:x.discount,s_cash:x.cash,s_card:x.card,s_tng:x.tng,s_grab:x.grab,s_duitnow:x.duitnow,s_boost:x.boost,s_other:x.other,s_comp:x.comp,s_spill:x.spill,s_covers:x.covers,s_guests:x.guests,s_note:x.note};
+  Object.entries(map).forEach(([k,v])=>{ document.getElementById(k).value = v==null?'':v; });
+  updateSalesSummary(); window.scrollTo({top:0,behavior:'smooth'});
+  toast('正在编辑，改完点「保存」');
+}
+
+/* ================= 费用 ================= */
+let editingExpId=null;
+function renderExpenses(){
+  const opts=CATEGORIES.map(c=>'<option>'+c+'</option>').join('');
+  const pays=PAYS.map(p=>'<option>'+p+'</option>').join('');
+  document.getElementById('main').innerHTML =
+    head('费用支出','进货选「酒水/食材/其他进货」（影响毛利），其余是营业费用')+
+    '<form id="expForm"><div class="card"><h3>💸 记一笔支出</h3>'+
+    '<div class="grid g4">'+
+      field('日期','e_date','date')+
+      '<div class="field"><label>类别</label><select id="e_cat">'+opts+'</select></div>'+
+      field('金额 (RM)','e_amount')+
+      '<div class="field"><label>支付方式</label><select id="e_pay">'+pays+'</select></div>'+
+      field('说明 / 供应商','e_desc','text')+
+      field('发票号','e_inv','text')+
+      field('备注','e_note','text')+
+    '</div>'+
+    '<div class="row" style="margin-top:6px">'+
+      '<button class="btn btn-gold" type="submit">💾 保存</button>'+
+      '<button class="btn" type="button" id="expNew">＋ 新增</button>'+
+      '<button class="btn" type="button" id="expCsv">⬇ 导出 CSV</button>'+
+    '</div></div></form>'+
+    '<div class="card"><h3>📋 支出记录 <input id="expSearch" placeholder="🔍 搜索" style="width:200px;margin-left:auto"></h3>'+
+    '<div class="tblwrap"><table><thead><tr><th>日期</th><th>类别</th><th>说明</th><th>发票号</th><th class="num">金额</th><th>支付</th><th></th></tr></thead>'+
+    '<tbody id="expTbody"></tbody></table></div></div>';
+  document.getElementById('e_date').value=todayStr();
+  document.getElementById('expForm').addEventListener('submit', e=>{
+    e.preventDefault();
+    const date=document.getElementById('e_date').value; if(!date){ toast('请填日期'); return; }
+    const amt=readNum('e_amount'); if(amt<=0){ toast('金额要大于 0'); return; }
+    const rec={ id:editingExpId||uid(), ts:Date.now(), date, category:document.getElementById('e_cat').value,
+      desc:document.getElementById('e_desc').value.trim(), inv:document.getElementById('e_inv').value.trim(),
+      amount:amt, pay:document.getElementById('e_pay').value, note:document.getElementById('e_note').value.trim() };
+    if(editingExpId){ const i=state.expenses.findIndex(x=>x.id===editingExpId); if(i>=0) state.expenses[i]=rec; }
+    else state.expenses.push(rec);
+    editingExpId=null; save(); toast('✅ 已保存');
+    document.getElementById('expForm').reset(); document.getElementById('e_date').value=todayStr(); refreshExpTable();
+  });
+  document.getElementById('expNew').addEventListener('click',()=>{ editingExpId=null; document.getElementById('expForm').reset(); document.getElementById('e_date').value=todayStr(); });
+  document.getElementById('expCsv').addEventListener('click', exportExpCSV);
+  document.getElementById('expSearch').addEventListener('input', refreshExpTable);
+  refreshExpTable();
+}
+function refreshExpTable(){
+  const q=(document.getElementById('expSearch').value||'').trim().toLowerCase();
+  const rows=state.expenses.slice().sort(sortDesc).filter(x=> !q || (x.category||'').includes(q) || (x.desc||'').toLowerCase().includes(q) || x.date.includes(q)).slice(0,300);
+  const tb=document.getElementById('expTbody');
+  tb.innerHTML = rows.length? rows.map(x=>
+    '<tr><td>'+x.date+'</td><td><span class="tag '+(COGS_CATS.includes(x.category)?'cogs':'')+'">'+esc(x.category||'')+'</span></td>'+
+    '<td>'+esc(x.desc||'')+'</td><td class="muted">'+esc(x.inv||'')+'</td>'+
+    '<td class="num"><b>'+rm(x.amount)+'</b></td><td class="muted">'+esc(x.pay||'')+'</td>'+
+    '<td><button class="btn btn-sm" data-edit="'+x.id+'">✏️</button> <button class="btn btn-sm btn-danger" data-del="'+x.id+'">🗑</button></td></tr>'
+  ).join('') : '<tr><td colspan="7" class="empty">还没有支出记录</td></tr>';
+  tb.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>{
+    const x=state.expenses.find(v=>v.id===b.dataset.edit); if(!x) return; editingExpId=x.id;
+    document.getElementById('e_date').value=x.date; document.getElementById('e_cat').value=x.category;
+    document.getElementById('e_desc').value=x.desc||''; document.getElementById('e_inv').value=x.inv||'';
+    document.getElementById('e_amount').value=x.amount; document.getElementById('e_pay').value=x.pay||'现金';
+    document.getElementById('e_note').value=x.note||''; window.scrollTo({top:0,behavior:'smooth'});
+  }));
+  tb.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',()=>{
+    if(confirm('删除这笔支出？')){ state.expenses=state.expenses.filter(x=>x.id!==b.dataset.del); save(); refreshExpTable(); }
+  }));
+}
+
+/* ================= 合伙人 ================= */
+let editingPartId=null;
+function renderPartners(){
+  const opts=state.settings.partners.map(p=>'<option>'+esc(p.name)+'</option>').join('');
+  const types=PTYPES.map(t=>'<option>'+t+'</option>').join('');
+  const ps=partnerSummary();
+  const caps=ps.map(p=>'<div class="pcap"><div class="n">👤 '+esc(p.name)+'（'+p.pct+'%）</div>'+
+    '<div class="ln"><span>资本投入</span><b>'+rm(p.cap)+'</b></div>'+
+    '<div class="ln"><span>提款</span><b>'+rm(p.drw)+'</b></div>'+
+    '<div class="ln"><span>净投入</span><b>'+rm(p.net)+'</b></div></div>').join('');
+  document.getElementById('main').innerHTML =
+    head('合伙人账户','资本投入 / 提款记录（合伙人不算员工工资）')+
+    '<div class="card"><div class="partner-caps">'+(caps||'<span class="muted">去「设置」添加合伙人</span>')+'</div></div>'+
+    '<form id="partForm"><div class="card"><h3>🤝 记一笔资金往来</h3>'+
+    '<div class="grid g4">'+
+      field('日期','p_date','date')+
+      '<div class="field"><label>合伙人</label><select id="p_partner">'+opts+'</select></div>'+
+      '<div class="field"><label>类型</label><select id="p_type">'+types+'</select></div>'+
+      field('金额 (RM)','p_amount')+
+      field('说明','p_desc','text')+
+      field('备注','p_note','text')+
+    '</div>'+
+    '<div class="row" style="margin-top:6px">'+
+      '<button class="btn btn-gold" type="submit">💾 保存</button>'+
+      '<button class="btn" type="button" id="partNew">＋ 新增</button>'+
+      '<button class="btn" type="button" id="partCsv">⬇ 导出 CSV</button>'+
+    '</div></div></form>'+
+    '<div class="card"><h3>📋 往来记录</h3><div class="tblwrap"><table><thead><tr><th>日期</th><th>合伙人</th><th>类型</th><th>说明</th><th class="num">金额</th><th></th></tr></thead>'+
+    '<tbody id="partTbody"></tbody></table></div></div>';
+  document.getElementById('p_date').value=todayStr();
+  document.getElementById('partForm').addEventListener('submit', e=>{
+    e.preventDefault();
+    const date=document.getElementById('p_date').value; if(!date){ toast('请填日期'); return; }
+    const amt=readNum('p_amount'); if(amt<=0){ toast('金额要大于 0'); return; }
+    const rec={ id:editingPartId||uid(), ts:Date.now(), date, partner:document.getElementById('p_partner').value,
+      type:document.getElementById('p_type').value, desc:document.getElementById('p_desc').value.trim(),
+      amount:amt, note:document.getElementById('p_note').value.trim() };
+    if(editingPartId){ const i=state.partners.findIndex(x=>x.id===editingPartId); if(i>=0) state.partners[i]=rec; }
+    else state.partners.push(rec);
+    editingPartId=null; save(); toast('✅ 已保存');
+    document.getElementById('partForm').reset(); document.getElementById('p_date').value=todayStr();
+    renderPartners();
+  });
+  document.getElementById('partNew').addEventListener('click',()=>{ editingPartId=null; document.getElementById('partForm').reset(); document.getElementById('p_date').value=todayStr(); });
+  document.getElementById('partCsv').addEventListener('click', exportPartCSV);
+  refreshPartTable();
+}
+function refreshPartTable(){
+  const rows=state.partners.slice().sort(sortDesc).slice(0,300);
+  const tb=document.getElementById('partTbody');
+  tb.innerHTML = rows.length? rows.map(x=>
+    '<tr><td>'+x.date+'</td><td>'+esc(x.partner)+'</td><td><span class="tag '+(x.type==='资本投入'?'cap':(x.type==='提款'?'drw':''))+'">'+esc(x.type)+'</span></td>'+
+    '<td>'+esc(x.desc||'')+'</td><td class="num"><b>'+rm(x.amount)+'</b></td>'+
+    '<td><button class="btn btn-sm" data-edit="'+x.id+'">✏️</button> <button class="btn btn-sm btn-danger" data-del="'+x.id+'">🗑</button></td></tr>'
+  ).join('') : '<tr><td colspan="6" class="empty">还没有资金往来记录</td></tr>';
+  tb.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>{
+    const x=state.partners.find(v=>v.id===b.dataset.edit); if(!x) return; editingPartId=x.id;
+    document.getElementById('p_date').value=x.date; document.getElementById('p_partner').value=x.partner;
+    document.getElementById('p_type').value=x.type; document.getElementById('p_desc').value=x.desc||'';
+    document.getElementById('p_amount').value=x.amount; document.getElementById('p_note').value=x.note||'';
+    window.scrollTo({top:0,behavior:'smooth'});
+  }));
+  tb.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',()=>{
+    if(confirm('删除这条记录？')){ state.partners=state.partners.filter(x=>x.id!==b.dataset.del); save(); renderPartners(); }
+  }));
+}
+
+/* ================= 报表 ================= */
+function renderReports(){
+  const y=state.settings.year;
+  document.getElementById('main').innerHTML =
+    head('报表','损益表 + 月度汇总，自动计算')+
+    '<div class="card"><div class="row" style="align-items:center">'+
+      '<div class="field" style="margin:0"><label>开始日期</label><input type="date" id="r_from" value="'+y+'-01-01" style="width:160px"></div>'+
+      '<div class="field" style="margin:0"><label>结束日期</label><input type="date" id="r_to" value="'+y+'-12-31" style="width:160px"></div>'+
+      '<button class="btn btn-blue" id="r_apply">🔄 刷新</button>'+
+      '<button class="btn" id="r_csv">⬇ 导出损益表 CSV</button>'+
+    '</div></div>'+
+    '<div class="card" id="plCard"></div>'+
+    '<div class="card" id="monthCard"></div>';
+  document.getElementById('r_apply').addEventListener('click', renderPL);
+  document.getElementById('r_csv').addEventListener('click', exportPLCSV);
+  renderPL();
+}
+function renderPL(){
+  const from=document.getElementById('r_from').value||(state.settings.year+'-01-01');
+  const to=document.getElementById('r_to').value||(state.settings.year+'-12-31');
+  const p=calcPL(from,to);
+  const rate=(state.settings.serviceRate||0);
+  const lines=[];
+  const row=(l,v,cls)=>{ lines.push('<tr class="'+cls+'"><td>'+l+'</td><td>'+v+'</td></tr>'); };
+  row('酒水销售', rm(p.liquor));
+  row('食物销售', rm(p.food));
+  row('软饮销售', rm(p.soft));
+  row('折扣 / Void（减）', '-'+rm(p.disc));
+  row('净销售', rm(p.net), 'total');
+  row('服务费收入（'+rate+'%）', rm(p.service));
+  row('总收入', rm(p.income), 'total');
+  row('—— 直接成本 ——','');
+  COGS_CATS.forEach(c=>{ if(p.cogs[c]) row(c, rm(p.cogs[c])); });
+  row('直接成本合计', rm(p.cogsT), 'total');
+  row('毛利', rm(p.gross), 'total');
+  row('毛利率', (p.net? (p.gross/p.net*100).toFixed(1):'0')+'%');
+  row('—— 营业费用 ——','');
+  Object.keys(p.opex).sort().forEach(c=> row(c, rm(p.opex[c])));
+  row('营业费用合计', rm(p.opexT), 'total');
+  row('净利润（合伙人分配前）', rm(p.netProfit), 'total');
+  const shares=state.settings.partners.map(pt=>row('↳ 分给 '+esc(pt.name)+'（'+pt.pct+'%）', rm(p.netProfit*pt.pct/100)));
+  document.getElementById('plCard').innerHTML =
+    '<h3>📊 损益表 '+from+' ～ '+to+'</h3><div class="tblwrap"><table class="pl-table"><tbody>'+lines.join('')+'</tbody></table></div>'+
+    '<p class="muted small" style="margin-top:10px">毛利率 = 毛利 ÷ 净销售（不含服务费，服务费基本要分回员工）。净利润按分成比例自动分给各合伙人，可直接用于 Form P / Form B。</p>';
+  // 月度
+  let mrows='';
+  for(let m=1;m<=12;m++){
+    const mr=monthRange(state.settings.year,m); const mp=calcPL(mr.from,mr.to);
+    mrows+='<tr><td>'+m+'月</td><td class="num">'+rm(mp.net)+'</td><td class="num">'+rm(mp.service)+'</td><td class="num">'+rm(mp.cogsT)+'</td><td class="num">'+rm(mp.opexT)+'</td><td class="num">'+rm(mp.gross)+'</td><td class="num">'+(mp.net?(mp.gross/mp.net*100).toFixed(1):'0')+'%</td></tr>';
+  }
+  const yp=calcPL(state.settings.year+'-01-01', state.settings.year+'-12-31');
+  mrows+='<tr class="total"><td>全年</td><td class="num">'+rm(yp.net)+'</td><td class="num">'+rm(yp.service)+'</td><td class="num">'+rm(yp.cogsT)+'</td><td class="num">'+rm(yp.opexT)+'</td><td class="num">'+rm(yp.gross)+'</td><td class="num">'+(yp.net?(yp.gross/yp.net*100).toFixed(1):'0')+'%</td></tr>';
+  document.getElementById('monthCard').innerHTML =
+    '<h3>📅 月度汇总（'+state.settings.year+'）</h3><div class="tblwrap"><table><thead><tr>'+
+    '<th>月份</th><th class="num">净销售</th><th class="num">服务费</th><th class="num">直接成本</th><th class="num">营业费用</th><th class="num">毛利</th><th class="num">毛利率</th></tr></thead><tbody>'+mrows+'</tbody></table></div>';
+}
+
+/* ================= 设置 ================= */
+function renderSettings(){
+  const ps=state.settings.partners;
+  const prow=ps.map((p,i)=>
+    '<div class="row" style="margin-bottom:8px">'+
+      '<input class="grow" value="'+esc(p.name)+'" data-pname="'+i+'" placeholder="合伙人名字" style="flex:2">'+
+      '<input value="'+p.pct+'" data-pct="'+i+'" placeholder="%" style="width:90px" type="number" min="0" max="100">'+
+      '<button class="btn btn-sm btn-danger" data-pdel="'+i+'">✕</button>'+
+    '</div>').join('');
+  document.getElementById('main').innerHTML =
+    head('设置','改完记得点「保存设置」')+
+    '<form id="setForm"><div class="card"><h3>🏪 基本资料</h3>'+
+    '<div class="grid g3">'+
+      field('店名','st_shop','text')+
+      field('会计年度','st_year','number')+
+      field('服务费率 %（多数酒吧收 10）','st_rate','number')+
+    '</div></div>'+
+    '<div class="card"><h3>🤝 合伙人 & 分成比例（合计必须 100%）</h3><div id="pList">'+prow+'</div>'+
+      '<div class="row"><button class="btn btn-sm" type="button" id="addPart">＋ 加合伙人</button><span class="muted small" id="pctSum" style="margin-left:auto"></span></div></div>'+
+    '<div class="card"><h3>☁️ Google Sheets 同步（可选）</h3>'+
+      '<div class="field"><label>Apps Script 网页应用网址（/exec 结尾）</label><input id="st_sync" placeholder="https://script.google.com/macros/s/.../exec"></div>'+
+      '<div class="row"><button class="btn btn-blue" type="button" id="testSync">🔌 测试连接</button><button class="btn" type="button" id="loadFromBtn">⬇ 从 Sheets 载入数据</button></div>'+
+      '<p class="muted small" style="margin-top:10px">配好后：打开软件会自动载入表格里的最新数据，每次保存会自动写回（手机/电脑共用一个表）。</p>'+
+    '</div>'+
+    '<div class="card"><h3>💾 数据备份</h3>'+
+      '<div class="row">'+
+        '<button class="btn" type="button" id="bkExport">⬇ 导出备份 (JSON)</button>'+
+        '<button class="btn" type="button" id="bkImport">⬆ 导入备份 (JSON)</button>'+
+        '<button class="btn btn-danger" type="button" id="bkClear">🗑 清空全部数据</button>'+
+      '</div>'+
+      '<p class="muted small" style="margin-top:10px">数据存在本机浏览器里，建议每周导出一份 JSON 备份，或直接开启 Google Sheets 同步。</p>'+
+    '</div>'+
+    '<button class="btn btn-gold" type="submit" style="padding:12px 26px">💾 保存设置</button></form>';
+  document.getElementById('st_shop').value=state.settings.shop;
+  document.getElementById('st_year').value=state.settings.year;
+  document.getElementById('st_rate').value=state.settings.serviceRate;
+  document.getElementById('st_sync').value=state.settings.syncUrl||'';
+  document.getElementById('setForm').addEventListener('submit', e=>{
+    e.preventDefault();
+    const psNew=[];
+    document.querySelectorAll('[data-pname]').forEach(inp=>{
+      const i=+inp.dataset.pname; const name=inp.value.trim(); const pct=num(document.querySelector('[data-pct="'+i+'"]').value);
+      if(name) psNew.push({name, pct});
+    });
+    if(psNew.length===0){ toast('至少要一个合伙人'); return; }
+    const total=psNew.reduce((s,p)=>s+p.pct,0);
+    if(Math.abs(total-100)>0.001){ toast('⚠️ 分成比例合计 = '+total+'%，要等于 100%'); return; }
+    state.settings.shop=document.getElementById('st_shop').value.trim();
+    state.settings.year=+document.getElementById('st_year').value||YEAR;
+    state.settings.serviceRate=num(document.getElementById('st_rate').value);
+    state.settings.syncUrl=document.getElementById('st_sync').value.trim();
+    state.settings.partners=psNew;
+    save(); toast('✅ 设置已保存'); renderSettings();
+  });
+  document.getElementById('addPart').addEventListener('click',()=>{ state.settings.partners.push({name:'合伙人'+(state.settings.partners.length+1), pct:0}); renderSettings(); });
+  document.querySelectorAll('[data-pdel]').forEach(b=>b.addEventListener('click',()=>{
+    const i=+b.dataset.pdel; if(state.settings.partners.length<=1){ toast('至少保留一个合伙人'); return; }
+    state.settings.partners.splice(i,1); renderSettings();
+  }));
+  document.getElementById('pctSum').textContent='当前合计：'+ps.reduce((s,p)=>s+num(p.pct),0)+'%';
+  document.getElementById('testSync').addEventListener('click', testSync);
+  document.getElementById('loadFromBtn').addEventListener('click', async ()=>{ if(await loadFromSheet(false)){ toast('✅ 已载入最新数据'); renderSettings(); } });
+  document.getElementById('bkExport').addEventListener('click', exportJSON);
+  document.getElementById('bkImport').addEventListener('click', ()=>document.getElementById('importFile').click());
+  document.getElementById('bkClear').addEventListener('click', ()=>{
+    if(confirm('确定清空全部数据？此操作不可恢复！（建议先导出备份）')){
+      state=JSON.parse(JSON.stringify(DEFAULTS)); save(); toast('已清空'); renderSettings();
+    }
+  });
+}
+document.getElementById('importFile').addEventListener('change', e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=()=>{ try{ const j=JSON.parse(rd.result);
+    if(!j.settings||!j.sales) throw 0;
+    if(confirm('导入将覆盖当前数据，继续？')){ state=j; save(); toast('✅ 导入成功'); renderSettings(); }
+  }catch(err){ toast('❌ 文件格式不对'); } };
+  rd.readAsText(f); e.target.value='';
+});
+
+/* ================= 同步 & 导出 ================= */
+function salesRowsForSync(){
+  return state.sales.slice().sort(sortAsc).map(x=>{ const c=calcRow(x);
+    return [x.date, c.liquor, c.food, c.soft, c.disc, c.net, c.service, c.receivable,
+            num(x.cash), num(x.card), num(x.tng), num(x.grab), num(x.duitnow), num(x.boost), num(x.other),
+            c.collected, c.diff, num(x.comp), num(x.spill), num(x.covers), num(x.guests), x.note||''];
+  });
+}
+function expenseRowsForSync(){
+  return state.expenses.slice().sort(sortAsc).map(x=>[x.date,x.category||'其他费用',x.desc||'',x.inv||'',num(x.amount),x.pay||'现金',x.note||'']);
+}
+function partnerRowsForSync(){
+  return state.partners.slice().sort(sortAsc).map(x=>[x.date,x.partner,x.type,x.desc||'',num(x.amount),x.note||'']);
+}
+function parseSalesRows(rows){
+  return (rows||[]).map(r=>({ id:uid(), ts:Date.now(), date:String(r[0]||'').slice(0,10),
+    liquor:num(r[1]), food:num(r[2]), soft:num(r[3]), discount:num(r[4]),
+    cash:num(r[8]), card:num(r[9]), tng:num(r[10]), grab:num(r[11]), duitnow:num(r[12]), boost:num(r[13]), other:num(r[14]),
+    comp:num(r[17]), spill:num(r[18]), covers:num(r[19]), guests:num(r[20]), note:(r[21]||'') }));
+}
+function parseExpenseRows(rows){
+  return (rows||[]).map(r=>({ id:uid(), ts:Date.now(), date:String(r[0]||'').slice(0,10), category:r[1]||'其他费用', desc:r[2]||'', inv:r[3]||'', amount:num(r[4]), pay:r[5]||'现金', note:r[6]||'' }));
+}
+function parsePartnerRows(rows){
+  return (rows||[]).map(r=>({ id:uid(), ts:Date.now(), date:String(r[0]||'').slice(0,10), partner:r[1]||'', type:r[2]||'资本投入', desc:r[3]||'', amount:num(r[4]), note:r[5]||'' }));
+}
+async function loadFromSheet(silent){
+  const url=sheetUrl();
+  if(!url){ if(!silent) toast('先在「设置」里填 Apps Script 网址'); return false; }
+  try{
+    const r=await fetch(url+(url.includes('?')?'&':'?')+'action=load',{method:'GET',mode:'cors'});
+    const j=await r.json();
+    if(!j.ok){ if(!silent) toast('载入失败：'+(j.error||'')); return false; }
+    const serverEmpty=(j.sales||[]).length===0 && (j.expenses||[]).length===0 && (j.partners||[]).length===0;
+    const localEmpty=state.sales.length===0 && state.expenses.length===0 && state.partners.length===0;
+    if(serverEmpty && !localEmpty){
+      // 表格是空的、本机有数据 → 保留本机数据，并推送到表格
+      saveLocal(); markSync('本机有数据，准备上传到表格…'); setTimeout(pushAll, 800);
+      if(!silent) toast('表格还是空的，已保留本机数据并准备上传');
+      return true;
+    }
+    if(j.sales!==undefined){ state.sales=parseSalesRows(j.sales); state.expenses=parseExpenseRows(j.expenses); state.partners=parsePartnerRows(j.partners); }
+    if(j.settings){ state.settings=Object.assign({}, state.settings, j.settings); }
+    saveLocal(); markSync('⬇ 已从 Google Sheets 载入');
+    return true;
+  }catch(e){ if(!silent) toast('❌ 载入失败，检查网址/网络'); return false; }
+}
+async function pushAll(){
+  const url=sheetUrl(); if(!url) return;
+  const body=JSON.stringify({ action:'save',
+    settings:{ shop:state.settings.shop, year:state.settings.year, serviceRate:state.settings.serviceRate, partners:state.settings.partners },
+    sales: salesRowsForSync(), expenses: expenseRowsForSync(), partners: partnerRowsForSync() });
+  try{
+    const r=await fetch(url,{method:'POST',mode:'cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body});
+    const j=await r.json();
+    if(!j.ok) throw new Error(j.error||'写入失败');
+    markSync('✅ 已同步 '+(j.written?(j.written.sales||0):0)+' 天销售 / '+(j.written?(j.written.expenses||0):0)+' 笔费用');
+  }catch(e){ markSync('❌ 同步失败：'+e.message); }
+}
+async function testSync(){
+  const url=(state.settings.syncUrl||'').trim();
+  if(!url){ toast('先在设置里填 Apps Script 网址'); return; }
+  try{
+    const r=await fetch(url+(url.includes('?')?'&':'?')+'test=1',{method:'GET',mode:'cors'}); const j=await r.json();
+    if(j.ok) toast('✅ 连接成功，可以同步'); else toast('连接失败：'+(j.error||'?'));
+  }catch(e){ toast('❌ 无法连接，检查网址和部署设置'); }
+}
+async function syncNow(){
+  if(!sheetUrl()){ toast('☁️ 先在「设置」里填入 Apps Script 网址'); return; }
+  toast('⏳ 正在同步到 Google Sheets…');
+  await pushAll();
+}
+
+function csvDownload(name, headers, rows){
+  const q=v=>{ v=(v==null?'':String(v)); return /[",\n]/.test(v)? '"'+v.replace(/"/g,'""')+'"' : v; };
+  const csv='\uFEFF'+[headers,...rows].map(r=>r.map(q).join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); URL.revokeObjectURL(a.href);
+}
+function exportSalesCSV(){
+  const H=['日期','酒水销售','食物销售','软饮销售','折扣/Void','净销售','服务费','合计应收','现金','卡',"Touch 'n Go",'GrabPay','DuitNow QR','Boost','其他','收款合计','差额','免费请客','溢倒/损耗','开台数','客人数','备注'];
+  const R=state.sales.slice().sort(sortAsc).map(x=>{ const c=calcRow(x);
+    return [x.date,c.liquor,c.food,c.soft,c.disc,c.net,c.service,c.receivable,num(x.cash),num(x.card),num(x.tng),num(x.grab),num(x.duitnow),num(x.boost),num(x.other),c.collected,c.diff,num(x.comp),num(x.spill),num(x.covers),num(x.guests),x.note||'']; });
+  csvDownload('每日销售_'+todayStr()+'.csv', H, R); toast('已导出 CSV');
+}
+function exportExpCSV(){
+  const H=['日期','类别','说明/供应商','发票号','金额','支付方式','备注'];
+  const R=state.expenses.slice().sort(sortAsc).map(x=>[x.date,x.category,x.desc||'',x.inv||'',x.amount,x.pay||'',x.note||'']);
+  csvDownload('费用_'+todayStr()+'.csv', H, R); toast('已导出 CSV');
+}
+function exportPartCSV(){
+  const H=['日期','合伙人','类型','说明','金额','备注'];
+  const R=state.partners.slice().sort(sortAsc).map(x=>[x.date,x.partner,x.type,x.desc||'',x.amount,x.note||'']);
+  csvDownload('合伙人账户_'+todayStr()+'.csv', H, R); toast('已导出 CSV');
+}
+function exportPLCSV(){
+  const from=document.getElementById('r_from').value||(state.settings.year+'-01-01');
+  const to=document.getElementById('r_to').value||(state.settings.year+'-12-31');
+  const p=calcPL(from,to);
+  const R=[['项目','金额'],['酒水销售',r2(p.liquor)],['食物销售',r2(p.food)],['软饮销售',r2(p.soft)],['折扣/Void',-r2(p.disc)],['净销售',r2(p.net)],['服务费收入',r2(p.service)],['总收入',r2(p.income)],['直接成本合计',r2(p.cogsT)],['毛利',r2(p.gross)],['营业费用合计',r2(p.opexT)],['净利润',r2(p.netProfit)]];
+  state.settings.partners.forEach(pt=>R.push(['分给 '+pt.name+' ('+pt.pct+'%)', r2(p.netProfit*pt.pct/100)]));
+  csvDownload('损益表_'+from+'_'+to+'.csv', ['项目','金额'], R); toast('已导出');
+}
+function exportJSON(){
+  const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='酒吧账本备份_'+todayStr()+'.json'; a.click(); URL.revokeObjectURL(a.href);
+  toast('已导出备份');
+}
+
+/* ================= 通用 ================= */
+function field(label,id,type){
+  const t=type||'number';
+  return '<div class="field"><label>'+label+'</label><input id="'+id+'" type="'+t+'"'+(t==='number'?' step="0.01" min="0"':'')+'></div>';
+}
+
+/* ================= 启动 ================= */
+(async function init(){
+  const pn=document.getElementById('persistNote');
+  pn.textContent = LS.persistent ? '数据保存在本机浏览器' : '⚠️ 预览模式不保存数据，请下载 HTML 后在浏览器打开';
+  if(sheetUrl()){
+    const ok=await loadFromSheet(true);
+    if(ok) toast('已从 Google Sheets 载入最新数据');
+  }
+  document.getElementById('shopLabel').textContent = (state.settings.shop||'我的酒吧')+' · '+state.settings.year;
+  go('dashboard');
+})();
+</script>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3ad761928eca742',t:'MTc4OTM2ODY2Nw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"1954b47c125f43f8b4338b3c4f804e4f","spa":2}' crossorigin="anonymous"></script>
+</body>
+</html>
